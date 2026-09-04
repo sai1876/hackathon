@@ -1,0 +1,28 @@
+.traffic-signal-pin {width:18px;height:34px;border:1.5px solid #91d5e1;border-radius:5px;background:#071c27;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:3px;box-shadow:0 2px 5px #0009;cursor:pointer;}
+.traffic-signal-pin span {width:6px;height:6px;border-radius:50%;background:#8a9ba5;border:1px solid #b7c9cf;}
+.traffic-signal-pin:hover,.traffic-signal-pin:focus-visible {border-color:white;outline:2px solid #66d9e8;z-index:5;}
+.traffic-signals-control {padding:12px 16px;background:#0a202c;color:#bed4df;font-size:12px;border-top:1px solid #25424f;}
+.traffic-signals-control>span {margin-left:12px;}
+.signal-toggle {padding:6px 12px;border:1px solid #55808c;background:#113341;color:#ddf8ff;border-radius:4px;cursor:pointer;}
+.signal-toggle[aria-pressed=false] {opacity:.65;}
+.traffic-signals-control details {margin-top:9px;}
+.traffic-signals-control summary {cursor:pointer;color:#7bd7e7;}
+.traffic-signals-control input {background:#071822;color:#d9eef5;padding:8px;border:1px solid #42616e;width:100%;margin:8px 0;}
+.traffic-signals-control ul {max-height:180px;overflow:auto;list-style:none;padding:0;margin:0;}
+.traffic-signals-control li {padding:5px 0;border-bottom:1px solid #213c47;display:flex;justify-content:space-between;gap:12px;}
+.traffic-signals-control small {color:#8fa9b5;}
+.signal-popup {color:#132832;font-size:12px;}
+.signal-popup p {margin:8px 0;}
+.map-shell>.traffic-signals-control {position:absolute;left:16px;top:68px;z-index:3;max-width:320px;border:1px solid #345360;max-height:48%;overflow:auto;}
+.map-shell>.traffic-signals-control>span {display:block;margin:7px 0 0;}
+
+.traffic-signal-pin[data-phase="RED"] span:nth-child(1){background:#ff455d;box-shadow:0 0 6px #ff455d;}
+.traffic-signal-pin[data-phase="AMBER"] span:nth-child(2){background:#ffbd39;box-shadow:0 0 6px #ffbd39;}
+.traffic-signal-pin[data-phase="GREEN"] span:nth-child(3){background:#35eda1;box-shadow:0 0 6px #35eda1;}
+.traffic-signal-pin[data-phase="FAILED"]{border-color:#f44;opacity:.5;}
+
+.traffic-signal-emoji,.command-polished button.traffic-signal-emoji{font-family:"Segoe UI Emoji","Apple Color Emoji",sans-serif;font-size:24px;line-height:1;width:30px;height:36px;min-height:0;border:0;background:transparent;padding:0;border-radius:5px;cursor:pointer;filter:drop-shadow(0 1px 2px #0009)}
+.traffic-signal-emoji:hover,.command-polished button.traffic-signal-emoji:hover{background:#d4edf622;filter:drop-shadow(0 0 3px #9bdef4)}
+.signal-inspector{background:#112435;border:1px solid #3b6076;border-radius:7px;padding:18px;margin:14px 0;color:#dce9f0;font:13px/1.5 "Segoe UI",Arial,sans-serif}.signal-inspector header{display:flex;justify-content:space-between;align-items:center;gap:14px}.signal-inspector h3{margin:3px 0 14px;font-size:17px;font-weight:600}.signal-inspector header small{font-size:10px;color:#8eafc2;letter-spacing:1px}.signal-inspector p{font-size:12px;color:#a9c0cf}.signal-inspector-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;border-bottom:1px solid #314b60;padding-bottom:14px}.signal-inspector-grid span{display:block;color:#99b4c7;font-size:11px}.signal-inspector-grid strong{font-size:14px;font-weight:500}.signal-operations{display:flex;align-items:end;gap:12px;flex-wrap:wrap}.signal-operations label{display:flex;flex-direction:column;gap:5px;font-size:12px}.signal-operations input{background:#0a1a28;color:#dceaf4;border:1px solid #416378;padding:9px;border-radius:5px;font-size:14px}.signal-inspector button{padding:8px 12px;border:1px solid #4d7b91;background:#1c4054;color:#deedf4;border-radius:5px;font-size:13px;cursor:pointer}.signal-inspector button:disabled{opacity:.4;cursor:default}.signal-command{display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding:12px;background:#183e41}.signal-inspector footer{font-size:11px;color:#91aabc;margin-top:14px}.signal-inspector [role=alert]{color:#ffb8b8}@media(max-width:700px){.signal-inspector-grid{grid-template-columns:1fr 1fr}}
+
+.signal-inspector select{background:#0a1a28;color:#dceaf4;border:1px solid #416378;padding:9px;width:100%;margin:8px 0;min-height:38px}.signal-direction-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(185px,1fr));gap:10px;margin:16px 0}.signal-direction-grid article{display:flex;gap:14px;align-items:center;background:#0c1a28;border:1px solid #40536a;border-left:4px solid #69778c;border-radius:5px;padding:14px}.signal-direction-grid article[data-state=GREEN]{border-left-color:#42ce94}.signal-direction-grid article[data-state=RED]{border-left-color:#f07882}.signal-direction-grid article[data-state=AMBER]{border-left-color:#edbe59}.signal-direction-grid small{display:block;margin-top:5px}.signal-bearing{font-size:28px;display:block;color:#d4e6ff}.signal-supply{padding:12px;border:1px dashed #a88849}.signal-supply-marker{padding:6px;background:#fff8df;border:2px solid #a88849;border-radius:5px}.em-centre>.traffic-signals-control{margin-bottom:15px}.traffic-signals-control>.signal-toggle{margin:4px 8px 4px 0}

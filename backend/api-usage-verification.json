@@ -1,0 +1,80 @@
+{
+  "apis": [
+    {
+      "sku": "GOOGLE_ROUTES",
+      "used": 0,
+      "status": "SAFE",
+      "allowed": true,
+      "provider": "GOOGLE",
+      "month_key": "2026-09",
+      "remaining": 100,
+      "hard_limit": 100,
+      "soft_limit": 100,
+      "usage_count": 0,
+      "usage_percent": 0.0,
+      "last_request_at": null
+    },
+    {
+      "sku": "GOOGLE_GEOCODING",
+      "used": 0,
+      "status": "SAFE",
+      "allowed": true,
+      "provider": "GOOGLE",
+      "month_key": "2026-09",
+      "remaining": 50000,
+      "hard_limit": 50000,
+      "soft_limit": 40000,
+      "usage_count": 0,
+      "usage_percent": 0.0,
+      "last_request_at": null
+    },
+    {
+      "sku": "GOOGLE_PLACES",
+      "used": 0,
+      "status": "SAFE",
+      "allowed": true,
+      "provider": "GOOGLE",
+      "month_key": "2026-09",
+      "remaining": 28000,
+      "hard_limit": 28000,
+      "soft_limit": 24000,
+      "usage_count": 0,
+      "usage_percent": 0.0,
+      "last_request_at": null
+    },
+    {
+      "sku": "GOOGLE_ROADS",
+      "used": 0,
+      "status": "SAFE",
+      "allowed": true,
+      "provider": "GOOGLE",
+      "month_key": "2026-09",
+      "remaining": 24000,
+      "hard_limit": 24000,
+      "soft_limit": 20000,
+      "usage_count": 0,
+      "usage_percent": 0.0,
+      "last_request_at": null
+    },
+    {
+      "sku": "GOOGLE_ELEVATION",
+      "used": 0,
+      "status": "SAFE",
+      "allowed": true,
+      "provider": "GOOGLE",
+      "month_key": "2026-09",
+      "remaining": 24000,
+      "hard_limit": 24000,
+      "soft_limit": 20000,
+      "usage_count": 0,
+      "usage_percent": 0.0,
+      "last_request_at": null
+    }
+  ],
+  "billing_guard": "PERSISTENT_ATOMIC_FAIL_CLOSED",
+  "fallback_status": "AEGIS AVAILABLE",
+  "last_google_fetch": null,
+  "checked_at": "2026-09-03T18:30:18.502246+00:00",
+  "google_enabled": false,
+  "note": "Application request caps; not a guarantee of free provider billing. Reservations can conservatively overcount after a process crash."
+}

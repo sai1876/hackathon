@@ -1,0 +1,28 @@
+.env
+.env.*
+!.env.example
+node_modules/
+.next/
+__pycache__/
+*.pyc
+.venv/
+test-results/
+*.log
+web/public/vendor/maplibre/
+*.tsbuildinfo
+backend/data/imports/
+
+# Local persistent synthetic electricity state
+backend/data/electric-world.sqlite3*
+
+backend/data/electric-world-*.sqlite3*
+
+# Local simulation project credentials
+backend/.env.simulation
+
+generated/
+backend/data/local-runtime-recovery.json
+.pytest_cache/
+
+!.env.*.example
+

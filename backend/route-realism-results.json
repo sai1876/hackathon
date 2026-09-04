@@ -1,0 +1,120 @@
+[
+  {
+    "pair": {
+      "id": "HYD-01",
+      "name": "HITEC City \u2192 Gachibowli",
+      "origin": {
+        "lat": 17.4480212,
+        "lon": 78.3790108
+      },
+      "destination": {
+        "lat": 17.4394483,
+        "lon": 78.3485459
+      },
+      "provenance": "DERIVED",
+      "source": "User-area selection snapped to supplied OSM node data",
+      "note": "Representative area points; not verified POI or hospital entrances",
+      "osm_nodes": [
+        "13041357151",
+        "12632759799"
+      ]
+    },
+    "old_distance_m": 5633.95,
+    "old_eta_sec": 352.37,
+    "warm_total_ms": 963.19,
+    "warm_cache_hit": true,
+    "new": {
+      "distance_m": 6139.19,
+      "eta_seconds": 417.86,
+      "turn_count": 6,
+      "road_class_mix": {
+        "residential": 0.36,
+        "primary": 86.59,
+        "secondary": 12.82,
+        "tertiary": 0.24
+      },
+      "overall_score": 439.07,
+      "graph_load_ms": 10380.86,
+      "cost_prepare_ms": 866.78,
+      "route_compute_ms": 45.54,
+      "total_ms": 11663.17,
+      "cache_hit": false
+    },
+    "alternatives": [
+      {
+        "distance_m": 6139.19,
+        "eta_seconds": 417.86,
+        "overall_score": 439.07
+      },
+      {
+        "distance_m": 5413.06,
+        "eta_seconds": 494.6,
+        "overall_score": 523.07
+      },
+      {
+        "distance_m": 6144.72,
+        "eta_seconds": 433.98,
+        "overall_score": 455.07
+      }
+    ]
+  },
+  {
+    "pair": {
+      "id": "HYD-02",
+      "name": "Madhapur \u2192 Kondapur",
+      "origin": {
+        "lat": 17.448582,
+        "lon": 78.3908137
+      },
+      "destination": {
+        "lat": 17.4613438,
+        "lon": 78.3626327
+      },
+      "provenance": "DERIVED",
+      "source": "User-area selection snapped to supplied OSM node data",
+      "note": "Representative area points; not verified POI or hospital entrances",
+      "osm_nodes": [
+        "1302060333",
+        "2232093439"
+      ]
+    },
+    "old_distance_m": 4420.79,
+    "old_eta_sec": 366.09,
+    "warm_total_ms": 1632.01,
+    "warm_cache_hit": true,
+    "new": {
+      "distance_m": 4550.22,
+      "eta_seconds": 442.27,
+      "turn_count": 8,
+      "road_class_mix": {
+        "residential": 14.92,
+        "tertiary": 8.02,
+        "secondary": 21.47,
+        "primary": 55.59
+      },
+      "overall_score": 471.59,
+      "graph_load_ms": 13681.49,
+      "cost_prepare_ms": 1134.58,
+      "route_compute_ms": 80.4,
+      "total_ms": 15150.59,
+      "cache_hit": false
+    },
+    "alternatives": [
+      {
+        "distance_m": 4550.22,
+        "eta_seconds": 442.27,
+        "overall_score": 471.59
+      },
+      {
+        "distance_m": 4166.88,
+        "eta_seconds": 477.19,
+        "overall_score": 511.08
+      },
+      {
+        "distance_m": 4423.53,
+        "eta_seconds": 456.31,
+        "overall_score": 488.48
+      }
+    ]
+  }
+]

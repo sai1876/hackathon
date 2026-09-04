@@ -1,0 +1,15 @@
+import type { Feature, Geometry } from "geojson";
+export type Provenance = "REAL" | "DERIVED" | "CALIBRATED" | "SYNTHETIC";
+export type Level = "NORMAL" | "MODERATE" | "HIGH" | "CRITICAL";
+export type OperationalMetric = { label: string; value: number | string; unit?: string; level: Level; provenance: Provenance };
+export type Alert = { id: string; title: string; location: string; level: Level; symbol: string; provenance: Provenance; source: string };
+export type AgentStatus = { department: string; symbol: string; state: "DEMO READY" | "DEMO REVIEW"; provenance: Provenance };
+export type DepartmentRecommendation = { id: string; department: string; incident: string; whyThisMatters: string; criticalLevel: Level; recommendedAction: string; whyThisSolution: string; expectedResult: string; dependencies: string[]; fallback: string; confidence: string; evidence: string[]; provenance: Provenance };
+export type EmergencyVehicle = { id: string; route: string; eta: number; delay: number; coordinate: [number, number]; provenance: Provenance };
+export type TrafficState = { load: number; normal: number; slow: number; congested: number; blocked: number; provenance: Provenance };
+export type PowerState = { total: number; normal: number; overloaded: number; failed: number; maintenance: number; load: number; provenance: Provenance };
+export type FloodState = { rainfall: number; risk: number; depth: number; forecast: number; trend: number[]; provenance: Provenance };
+export type Scenario = "NORMAL" | "ROAD BLOCKAGE" | "ACCIDENT" | "WATERLOGGING" | "SIGNAL FAILURE" | "AMBULANCE EVENT" | "POWER FAULT";
+export type SimulationState = { scenario: Scenario; playing: boolean; speed: 1 | 2 | 5; tick: number; provenance: Provenance };
+export type MapSelection = { id: string; name: string; kind: string; status: string; baseSpeed: string; currentSpeed: string; congestion: string; impact: string; waterRisk: string; etaImpact: string; affectedRoutes: string; provenance: Provenance; source: string; feature?: Feature<Geometry> };
+export type DemoAsset = { id: string; name: string; kind: "signal" | "transformer" | "hospital" | "ambulance"; symbol: string; coordinate: [number, number]; provenance: Provenance };
