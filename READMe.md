@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <a href="https://web-nine-eta-66.vercel.app/command"><strong>Live Demo</strong></a>
+  
   ·
   <a href="https://github.com/sai1876/hackathon"><strong>Repository</strong></a>
   ·
