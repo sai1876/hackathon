@@ -3,6 +3,7 @@ Seed state tables are immutable starting conditions, never presented as live tel
 """
 from copy import deepcopy
 from datetime import datetime, timezone
+import os
 from pathlib import Path
 from threading import RLock, Event, Thread
 from time import time
@@ -324,7 +325,10 @@ def start():
   global db,assets,profiles,failure,timetable,RUN_ID
   try:
    c=dotenv_values(Path(__file__).with_name('.env.simulation'))
-   db=create_client(c['SIMULATION_SUPABASE_URL'],c['SIMULATION_SUPABASE_SERVICE_ROLE_KEY'])
+   simulation_url=os.getenv('SIMULATION_SUPABASE_URL') or c.get('SIMULATION_SUPABASE_URL')
+   simulation_key=os.getenv('SIMULATION_SUPABASE_SERVICE_ROLE_KEY') or c.get('SIMULATION_SUPABASE_SERVICE_ROLE_KEY')
+   if not simulation_url or not simulation_key:raise RuntimeError('Simulation Supabase credentials are missing')
+   db=create_client(simulation_url,simulation_key)
    anchor=db.table('aegis_sim_runs').select('configuration').eq('id',ROOT_RUN_ID).single().execute().data
    RUN_ID=anchor['configuration'].get('active_run_id',ROOT_RUN_ID)
    # Geometry blocks are queried only when needed; don't download city geometry per tick.

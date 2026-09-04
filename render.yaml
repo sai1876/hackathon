@@ -14,5 +14,17 @@ services:
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
+      - key: SIMULATION_SUPABASE_URL
+        sync: false
+      - key: SIMULATION_SUPABASE_SERVICE_ROLE_KEY
+        sync: false
       - key: CORS_ORIGINS
         sync: false
+      - key: GOOGLE_MAPS_API_KEY
+        sync: false
+      - key: GOOGLE_REFERENCE_ENABLED
+        value: "false"
+      - key: GOOGLE_WEATHER_ENABLED
+        value: "false"
+      - key: AEGIS_OPERATOR_TOKEN
+        generateValue: true

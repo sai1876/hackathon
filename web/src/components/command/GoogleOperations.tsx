@@ -19,7 +19,7 @@ export default function GoogleOperations(){
  const [origin,setOrigin]=useState<LatLng>({lat:17.4435,lng:78.3772}),[destination,setDestination]=useState<LatLng>({lat:17.4353,lng:78.3845});
  useEffect(()=>()=>{overlays.current.forEach(o=>o.setMap(null));},[]);
  const load=async()=>{setBusy(true);setError('');try{
- const key=process.env.NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY||process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+ const key=process.env.NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY;
  if(!key)throw Error('Google browser key is not configured');
  const w=window as unknown as {google?:{maps:Maps}};
  if(!w.google){await new Promise<void>((resolve,reject)=>{const s=document.createElement('script');s.src=`https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}`;s.async=true;s.onload=()=>resolve();s.onerror=()=>reject(Error('Google map failed to load'));document.head.appendChild(s);});}
