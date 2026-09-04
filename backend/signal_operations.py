@@ -71,7 +71,12 @@ def create(p:Create):
     import scenario_runtime as shared
     if p.bounds not in (2,3,4,6):raise HTTPException(422,'Choose 2, 3, 4 or 6 approaches')
     shared.snapshot()
-    try:shared.commit(SimpleNamespace(action='SIGNAL_CREATE',payload=p.model_dump(),request_id=p.request_id,target_id=None,speed=1))
-    except ValueError as e:raise HTTPException(409,str(e))
+    try:
+        shared.commit(SimpleNamespace(action='SIGNAL_CREATE',payload=p.model_dump(),request_id=p.request_id,target_id=None,speed=1))
+    except ValueError as e:
+        raise HTTPException(409,str(e))
+    except shared.ScenarioConflict:
+        raise HTTPException(409, 'Scenario was updated concurrently. Please retry.')
     from command_data import signals
     return signals()
+

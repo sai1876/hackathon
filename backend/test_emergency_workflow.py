@@ -31,6 +31,10 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(t['plan_version'],1)
         self.do('BLOCKAGE',id='ahead',lat=17.4,lon=78.417,reason='Road closed ahead')
         self.assertEqual(t['plan_version'],2);self.assertEqual(t['movement'],'REPLANNING');self.assertTrue(t['priority_hold'])
+    def test_blockage_keeps_database_road_match_for_audit(self):
+        self.do('BLOCKAGE',id='matched',lat=17.4,lon=78.417,reason='Collision',road_name='Test Road',target_edge_id='edge-7',snap_distance_m=8.2,provenance='OPERATOR_INPUT_SNAPPED_TO_DATABASE_ROAD')
+        b=m.world(self.s)['blockages']['matched']
+        self.assertEqual(b['road_name'],'Test Road');self.assertEqual(b['target_edge_id'],'edge-7');self.assertEqual(b['snap_distance_m'],8.2)
     def test_no_route_stops_and_raises_urgent(self):
         t=self.create();self.do('NO_ROUTE',trip_id='trip',plan_version=1);self.tick(5)
         self.assertEqual(t['travelled_m'],0);self.assertTrue(m.world(self.s)['urgent'])

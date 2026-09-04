@@ -9,9 +9,10 @@ import "@/components/command/main-command.css";
 import MetroOperations from "./MetroOperations";
 import MetroServiceDays from "./MetroServiceDays";
 import "./metro.css";
-export function MetroView({controls=false}:{controls?:boolean}){
- const {data,error}=useMetro();
- return <section className="metro-view"><header><div><span className="metro-badge">DATABASE OPERATING MODEL · SIMULATED POSITIONS</span><h2>Hyderabad Metro · network operations</h2><p>3 lines · {data?.station_count??57} stations · {data?.trip_count??"—"} scheduled trips in feed</p></div><strong>{data?.state.service_date} · {data?.clock??"—"} IST<br/>{data?.state.running?"RUNNING":"PAUSED"} · {data?.state.speed??1}×</strong></header>{error&&<p role="alert" className="metro-error">{error}</p>}
+ export function MetroView({controls=false}:{controls?:boolean}){
+  const {data,error}=useMetro();
+  return <section className="metro-view"><header><div><span className="metro-badge">DATABASE OPERATING MODEL · SIMULATED POSITIONS</span><h2>Hyderabad Metro · network operations</h2><p>3 lines · {data?.station_count??57} stations · {data?.trip_count??"—"} scheduled trips in feed</p></div><strong>{data?.state.service_date ?? "—"} · {data?.clock??"—"} IST<br/>{error ? "STALE" : data?.state.running ? "RUNNING" : "PAUSED"} · {data?.state.speed??1}×</strong></header>{error&&<p role="alert" className="metro-error">{error}</p>}
+
  <ScenarioControls polygon={[]} drawing={false} onDraw={()=>{}} onClear={()=>{}} readOnly/><MetroOperations setup={controls}/><MetroServiceDays/><MetroSchematic data={data}/>
  <Link href="/command">All trains follow the shared clock in Central Scenario Controls →</Link>
 

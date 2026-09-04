@@ -3,16 +3,21 @@ import {useEffect,useRef,useState} from "react";
 import * as maplibregl from "maplibre-gl";
 import type {FeatureCollection} from "geojson";
 import {request} from "@/lib/api";
+import {useResilientPolling} from "@/lib/useResilientPolling";
 import "./metro.css";
 export type Train={motion?:string;source_trip_id?:string;speed_mps?:number;segment_m?:number;geometry?:number[][];dwell_until?:number;passengers?:number;capacity?:number;hold_until?:number;release?:boolean;crew_ready?:boolean;schedule:{station:string;arrival:number;departure:number}[];id:string;block:string;line_id:string;status:string;from_station:string;to_station:string;position:[number,number];progress:number;seconds_to_next:number;headsign:string};
 export type Turnback={id:string;block:string;line_id:string;station_id:string;station:string;started_at_seconds:number;ends_at_seconds:number;duration_seconds:number;remaining_seconds:number;phase?:string;crew_ready?:boolean;next_departure_seconds:number|null;next_trip_id:string|null;next_destination:string};
 export type MetroSnapshot={turnbacks?:Turnback[];turnback_quality?:{overlapping_trip_pairs:number;note:string};trains:Train[];state:{running:boolean;speed:number;sim_seconds:number;service_date:string};clock:string;note:string;source:string;station_count:number;trip_count:number;version:number};
 type Network={tracks:FeatureCollection;stations:{id:string;name:string;lon:number;lat:number}[];routes:{route_id:string;route_color:string}[]};
 export function useMetro(){
- const [data,setData]=useState<MetroSnapshot|null>(null),[error,setError]=useState("");
- useEffect(()=>{let alive=true;let timer:ReturnType<typeof setTimeout>;const refresh=async()=>{try{const next=await request<MetroSnapshot>("/metro/snapshot",{},15000);if(alive){setData(next);setError("");}}catch{if(alive)setError("Metro connection unavailable — displayed positions are stale");}if(alive)timer=setTimeout(refresh,1000);};void refresh();return()=>{alive=false;clearTimeout(timer);};},[]);
- return {data,error,setData,setError};
+ return useResilientPolling<MetroSnapshot>({
+  url: "/metro/snapshot",
+  normalIntervalMs: 3000,
+  timeoutMs: 15000,
+  defaultErrorMessage: "Metro connection unavailable — displayed positions are stale"
+ });
 }
+
 function legPosition(train:Train, elapsed:number):[number,number]{
  const points=train.geometry;
  if(train.status!=='IN_TRANSIT'||!points||points.length<2)return train.position;
@@ -55,7 +60,7 @@ export function MetroLayer({map}:{map:maplibregl.Map|null}){
   };frame=requestAnimationFrame(paint);return()=>cancelAnimationFrame(frame);
  },[data,visible]);
  useEffect(()=>{const current=markers.current;return()=>{current.forEach(m=>m.remove());current.clear();};},[]);
- return <div className="metro-overlay-control"><button aria-pressed={visible} onClick={()=>setVisible(!visible)}>Metro routes & trains · {visible?"ON":"OFF"}</button><span>{data?.trains.length??"—"} operating trains · {data?.clock??"—"} IST · {data?.state.running?"PLAYBACK":"PAUSED"} · not live GPS</span>{(error||networkError)&&<p role="alert">{error||networkError}</p>}</div>;
+ return <div className="metro-overlay-control"><button aria-pressed={visible} onClick={()=>setVisible(!visible)}>Metro routes & trains · {visible?"ON":"OFF"}</button><span>{data?.trains.length??"—"} operating trains · {data?.clock??"—"} IST · {error?"STALE":data?.state.running?"PLAYBACK":"PAUSED"} · not live GPS</span>{(error||networkError)&&<p role="alert">{error||networkError}</p>}</div>;
 }
 export default function MetroMap(){
  const container=useRef<HTMLDivElement>(null);const [map,setMap]=useState<maplibregl.Map|null>(null),[error,setError]=useState("");

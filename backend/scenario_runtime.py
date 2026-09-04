@@ -6,10 +6,12 @@ from datetime import datetime, timezone
 import os
 from pathlib import Path
 from threading import RLock, Event, Thread
-from time import time
+from time import time, sleep
+import random
 from uuid import uuid4, uuid5, NAMESPACE_URL
 from collections import Counter
 import logging
+
 import json
 from dotenv import dotenv_values
 from supabase import create_client
@@ -21,6 +23,33 @@ router=APIRouter(prefix='/command/scenario', tags=['Shared simulation'])
 RUN_ID=str(uuid5(NAMESPACE_URL,'aegisgrid:shared:v1:20260904:baseline'))
 ROOT_RUN_ID=RUN_ID
 lock=RLock(); stop=Event(); db=None; assets=[]; profiles=[]; current=None; checked=0; failure='Loading shared database'; seed_loads={}; timetable=None; routing_signature=None; public_cache=None; public_version=-1
+_worker_thread = None
+_worker_started = False
+
+class ScenarioError(Exception):
+    """Base exception for scenario runtime errors."""
+    pass
+
+class ScenarioConflict(ScenarioError):
+    """Optimistic write revision mismatch. An expected concurrency race."""
+    def __init__(self, message: str, run_id: str | None = None, expected_version: int | None = None, actual_version: int | None = None):
+        super().__init__(message)
+        self.run_id = run_id
+        self.expected_version = expected_version
+        self.actual_version = actual_version
+
+class PersistenceContention(ScenarioError):
+    """Temporary database busy, lock conflict, or contention error."""
+    pass
+
+class TransientPersistenceFailure(ScenarioError):
+    """Transient network timeout, connection reset, or temporary HTTP 5xx."""
+    pass
+
+class DatabaseUnavailable(ScenarioError):
+    """Persistent dependency, authentication, schema, or initialization failure."""
+    pass
+
 
 class Command(BaseModel):
  action: str=Field(pattern='^(PLAY|PAUSE|SPEED|SERVICE_START|SET_TIME|RAIN|FLOOD|ELECTRIC|TRAFFIC|METRO|SIGNAL|END|REMOVE|APPROVE|REJECT)$')
@@ -189,35 +218,197 @@ def act(s,c):
  s['requests']=(s['requests']+[c.request_id])[-500:]
 
 
-def commit(command=None):
- global current,checked,failure
- with lock:
-  for retry in range(3):
-   row=db.table('aegis_sim_runs').select('*').eq('id',RUN_ID).single().execute().data
-   from metro_simulation import unpack_state,pack_state
-   s=unpack_state(deepcopy(row['configuration'].get('runtime') or initial(row)))
-   import metro_simulation
-   needs_metro=metro_simulation.network is not None and 'metro_v3' not in s
-   if needs_metro:metro_simulation.ensure(s)
-   if not needs_metro and command is None and not s['running'] and row['configuration'].get('runtime') and not s['outbox']:
-    current=dict(state=s,version=row['version']);checked=time();failure='';publish(s);return snapshot()
-   advance(s,time())
-   if command:act(s,command)
-   # An outbox in the same atomic commit prevents phantom or missing audit events.
-   if len(s['outbox'])>1000:raise RuntimeError('Event archive unavailable; simulation paused until persistence recovers')
-   config={**row['configuration'],'runtime':pack_state(s),'runtime_authority':'configuration.runtime; seed state tables are initial conditions'}
-   updated=db.table('aegis_sim_runs').update(dict(configuration=config,sim_seconds=s['seconds'],version=row['version']+1,status='RUNNING' if s['running'] else 'PAUSED')).eq('id',RUN_ID).eq('version',row['version']).execute().data
-   if not updated:continue
-   current=dict(state=s,version=row['version']+1);checked=time();failure=''
-   publish(s)
-   if s['outbox']:
+def load_state():
+    """Load latest scenario row and unpacked state from database."""
+    global db, RUN_ID
+    if db is None:
+        raise DatabaseUnavailable('Database client is not initialized')
     try:
-     db.table('aegis_sim_events').upsert(s['outbox'],on_conflict='id').execute()
-     clean=deepcopy(config);clean['runtime']['outbox']=[]
-     db.table('aegis_sim_runs').update(dict(configuration=clean)).eq('id',RUN_ID).eq('version',row['version']+1).execute()
-    except Exception:logging.warning('Scenario event archive pending; committed outbox retained')
-   return snapshot()
-  raise RuntimeError('Scenario changed concurrently; retry')
+        row = db.table('aegis_sim_runs').select('*').eq('id', RUN_ID).single().execute().data
+    except Exception as exc:
+        err_msg = str(exc).lower()
+        if 'timeout' in err_msg or 'reset' in err_msg or '502' in err_msg or '503' in err_msg or '504' in err_msg:
+            raise TransientPersistenceFailure(f'Transient error loading state: {exc}') from exc
+        raise DatabaseUnavailable(f'Database unavailable: {exc}') from exc
+
+    if not row:
+        raise DatabaseUnavailable(f'Simulation run {RUN_ID} not found')
+
+    from metro_simulation import unpack_state
+    s = unpack_state(deepcopy(row['configuration'].get('runtime') or initial(row)))
+    import metro_simulation
+    needs_metro = metro_simulation.network is not None and 'metro_v3' not in s
+    if needs_metro:
+        metro_simulation.ensure(s)
+    return row, s
+
+
+def flush_outbox(outbox_events, config, expected_version):
+    """Independently flush outbox events to aegis_sim_events without failing state commit."""
+    global db, RUN_ID
+    if not outbox_events or db is None:
+        return
+    try:
+        db.table('aegis_sim_events').upsert(outbox_events, on_conflict='id').execute()
+        clean = deepcopy(config)
+        clean['runtime']['outbox'] = []
+        db.table('aegis_sim_runs').update(dict(configuration=clean)).eq('id', RUN_ID).eq('version', expected_version).execute()
+    except Exception as exc:
+        logging.warning('Scenario event archive pending; committed outbox retained: %s', exc)
+
+
+def commit_revision(s, expected_version, config=None):
+    """Commit one expected revision. Strictly performs an atomic conditional update.
+    Never silently retries with stale mutations.
+    """
+    global current, checked, failure, db, RUN_ID
+    from metro_simulation import pack_state
+
+    if len(s.get('outbox', [])) > 1000:
+        raise RuntimeError('Event archive unavailable; simulation paused until persistence recovers')
+
+    if config is None:
+        row = db.table('aegis_sim_runs').select('configuration').eq('id', RUN_ID).single().execute().data
+        base_config = row['configuration'] if row else {}
+    else:
+        base_config = config
+
+    updated_config = {
+        **base_config,
+        'runtime': pack_state(s),
+        'runtime_authority': 'configuration.runtime; seed state tables are initial conditions'
+    }
+
+    try:
+        new_version = expected_version + 1
+        updated = db.table('aegis_sim_runs').update(dict(
+            configuration=updated_config,
+            sim_seconds=s['seconds'],
+            version=new_version,
+            status='RUNNING' if s['running'] else 'PAUSED'
+        )).eq('id', RUN_ID).eq('version', expected_version).execute().data
+    except Exception as exc:
+        err_msg = str(exc).lower()
+        if 'busy' in err_msg or 'lock' in err_msg:
+            raise PersistenceContention(f'Database lock contention: {exc}') from exc
+        if 'timeout' in err_msg or 'reset' in err_msg or '502' in err_msg or '503' in err_msg or '504' in err_msg:
+            raise TransientPersistenceFailure(f'Transient network error: {exc}') from exc
+        raise DatabaseUnavailable(f'Database error: {exc}') from exc
+
+    if not updated:
+        actual_version = None
+        try:
+            curr_row = db.table('aegis_sim_runs').select('version').eq('id', RUN_ID).single().execute().data
+            if curr_row:
+                actual_version = curr_row.get('version')
+        except Exception:
+            pass
+        raise ScenarioConflict(
+            f"Scenario revision conflict on run {RUN_ID} (expected {expected_version}, actual {actual_version})",
+            run_id=RUN_ID,
+            expected_version=expected_version,
+            actual_version=actual_version
+        )
+
+    current = dict(state=s, version=new_version)
+    checked = time()
+    failure = ''
+    publish(s)
+
+    if s.get('outbox'):
+        flush_outbox(s['outbox'], updated_config, new_version)
+
+    return snapshot()
+
+
+def apply_mutation(mutation_fn, request_id=None, max_retries=5):
+    """Execute a state mutation function with clean optimistic concurrency retry semantics:
+    reload fresh state -> mutate -> commit_revision -> on conflict: jittered backoff -> reload -> recalculate -> retry.
+
+    If request_id is provided and already recorded in s['requests'], the mutation is
+    treated as idempotent and the current state snapshot is returned without duplicate application.
+    """
+    global current, checked, failure
+    import random
+    from time import sleep
+
+    with lock:
+        if request_id and current and request_id in current['state'].get('requests', []):
+            logging.info("Request %s already committed in scenario runtime; returning snapshot", request_id)
+            return snapshot()
+
+        for attempt in range(1, max_retries + 1):
+            row, s = load_state()
+
+            if request_id and request_id in s.get('requests', []):
+                logging.info("Request %s already committed in database run (version %s); returning snapshot", request_id, row['version'])
+                current = dict(state=s, version=row['version'])
+                checked = time()
+                failure = ''
+                return snapshot()
+
+            mutation_fn(s)
+
+            try:
+                return commit_revision(s, expected_version=row['version'], config=row['configuration'])
+            except ScenarioConflict as conflict:
+                if attempt < max_retries:
+                    backoff = 0.025 * (2 ** (attempt - 1)) + random.uniform(0.005, 0.020)
+                    logging.warning(
+                        "Scenario revision conflict on run %s (expected %s, actual %s); retrying attempt %d/%d after %.3fs",
+                        conflict.run_id, conflict.expected_version, conflict.actual_version, attempt, max_retries, backoff
+                    )
+                    sleep(backoff)
+                    continue
+                logging.warning(
+                    "Scenario revision conflict on run %s after %d attempts; raising ScenarioConflict",
+                    conflict.run_id, max_retries
+                )
+                raise
+            except (PersistenceContention, TransientPersistenceFailure) as transient_err:
+                if attempt < max_retries:
+                    backoff = 0.050 * (2 ** (attempt - 1)) + random.uniform(0.010, 0.030)
+                    logging.warning(
+                        "Transient persistence issue on run %s (%s); retrying attempt %d/%d after %.3fs",
+                        RUN_ID, type(transient_err).__name__, attempt, max_retries, backoff
+                    )
+                    sleep(backoff)
+                    continue
+                raise
+
+        raise ScenarioConflict(f"Scenario revision conflict on run {RUN_ID} after {max_retries} attempts", run_id=RUN_ID)
+
+
+def commit(command=None, max_retries=5):
+    """Helper wrapping apply_mutation for backward compatibility."""
+    global current, checked, failure
+    req_id = getattr(command, 'request_id', None) if command else None
+
+    if command is None:
+        with lock:
+            if current and not current['state']['running'] and not current['state'].get('outbox'):
+                checked = time()
+                return snapshot()
+            try:
+                row, s = load_state()
+                import metro_simulation
+                needs_metro = metro_simulation.network is not None and 'metro_v3' not in s
+                if not needs_metro and not s['running'] and row['configuration'].get('runtime') and not s.get('outbox'):
+                    current = dict(state=s, version=row['version'])
+                    checked = time()
+                    failure = ''
+                    publish(s)
+                    return snapshot()
+            except Exception:
+                pass
+
+    def mutate(s):
+        advance(s, time())
+        if command:
+            act(s, command)
+
+    return apply_mutation(mutate, request_id=req_id, max_retries=max_retries)
+
 
 
 def publish(s):
@@ -320,50 +511,120 @@ def snapshot():
  return public_cache
 
 
+def check_readiness():
+    """Actively verify database reachability and table usability.
+    Clears any prior failure flag upon successful verification.
+    """
+    global db, current, checked, failure, RUN_ID
+    if db is None:
+        return False
+    try:
+        row = db.table('aegis_sim_runs').select('id,version,sim_seconds,configuration').eq('id', RUN_ID).single().execute().data
+        if not row:
+            failure = f'Simulation run {RUN_ID} not found'
+            return False
+        if current is None:
+            from metro_simulation import unpack_state
+            s = unpack_state(deepcopy(row['configuration'].get('runtime') or initial(row)))
+            current = dict(state=s, version=row['version'])
+        checked = time()
+        failure = ''
+        return True
+    except Exception as exc:
+        failure = f'Database unreachable: {type(exc).__name__}'
+        return False
+
+
 def start():
- def work():
-  global db,assets,profiles,failure,timetable,RUN_ID
-  try:
-   c=dotenv_values(Path(__file__).with_name('.env.simulation'))
-   simulation_url=os.getenv('SIMULATION_SUPABASE_URL') or c.get('SIMULATION_SUPABASE_URL')
-   simulation_key=os.getenv('SIMULATION_SUPABASE_SERVICE_ROLE_KEY') or c.get('SIMULATION_SUPABASE_SERVICE_ROLE_KEY')
-   if not simulation_url or not simulation_key:raise RuntimeError('Simulation Supabase credentials are missing')
-   db=create_client(simulation_url,simulation_key)
-   anchor=db.table('aegis_sim_runs').select('configuration').eq('id',ROOT_RUN_ID).single().execute().data
-   RUN_ID=anchor['configuration'].get('active_run_id',ROOT_RUN_ID)
-   # Geometry blocks are queried only when needed; don't download city geometry per tick.
-   for kind in ['WEATHER_AREA','METRO_STATION','DISTRIBUTION_TRANSFORMER','FEEDER','POWER_TRANSFORMER','SUBSTATION','TRAFFIC_SIGNAL','SIGNAL_GROUP','METRO_TRAIN','METRO_OD_MODEL']:
-    for offset in range(0,10000,1000):
-     batch=db.table('aegis_sim_assets').select('*').eq('kind',kind).order('id').range(offset,offset+999).execute().data
-     assets.extend(batch)
-     if len(batch)<1000:break
-   profiles=rows('aegis_sim_profiles')
-   for offset in range(0,10000,1000):
-    batch=db.table('aegis_sim_state').select('asset_id,values->load_kva').eq('run_id',ROOT_RUN_ID).order('id').range(offset,offset+999).execute().data
-    seed_loads.update({r['asset_id']:r['load_kva'] for r in batch if r.get('load_kva') is not None})
-    if len(batch)<1000:break
-   from metro_engine import feed
-   timetable=feed()
-   from metro_network import Network
-   import metro_simulation
-   metro_simulation.network=Network(timetable,assets,profiles)
-   while not stop.is_set():
-    try:commit()
-    except Exception:failure='Shared simulation persistence unavailable';logging.exception('Scenario tick failed')
-    stop.wait(2)
-  except Exception:failure='Shared database could not be loaded';logging.exception('Scenario startup failed')
- Thread(target=work,daemon=True,name='shared-scenario').start()
+    global db, assets, profiles, failure, timetable, RUN_ID, _worker_thread, _worker_started
+    if os.getenv("DISABLE_SCENARIO_WORKER", "false").lower() == "true":
+        logging.info("Scenario background worker disabled via DISABLE_SCENARIO_WORKER")
+        return
+
+    with lock:
+        if _worker_started and _worker_thread is not None and _worker_thread.is_alive():
+            logging.info("Scenario worker already running; skipping duplicate start")
+            return
+        stop.clear()
+        _worker_started = True
+
+    def work():
+        global db, assets, profiles, failure, timetable, RUN_ID
+        try:
+            c = dotenv_values(Path(__file__).with_name('.env.simulation'))
+            simulation_url = os.getenv('SIMULATION_SUPABASE_URL') or c.get('SIMULATION_SUPABASE_URL')
+            simulation_key = os.getenv('SIMULATION_SUPABASE_SERVICE_ROLE_KEY') or c.get('SIMULATION_SUPABASE_SERVICE_ROLE_KEY')
+            if not simulation_url or not simulation_key:
+                raise RuntimeError('Simulation Supabase credentials are missing')
+            db = create_client(simulation_url, simulation_key)
+            anchor = db.table('aegis_sim_runs').select('configuration').eq('id', ROOT_RUN_ID).single().execute().data
+            RUN_ID = anchor['configuration'].get('active_run_id', ROOT_RUN_ID)
+            for kind in ['WEATHER_AREA', 'METRO_STATION', 'DISTRIBUTION_TRANSFORMER', 'FEEDER', 'POWER_TRANSFORMER', 'SUBSTATION', 'TRAFFIC_SIGNAL', 'SIGNAL_GROUP', 'METRO_TRAIN', 'METRO_OD_MODEL']:
+                for offset in range(0, 10000, 1000):
+                    batch = db.table('aegis_sim_assets').select('*').eq('kind', kind).order('id').range(offset, offset + 999).execute().data
+                    assets.extend(batch)
+                    if len(batch) < 1000:
+                        break
+            profiles = rows('aegis_sim_profiles')
+            for offset in range(0, 10000, 1000):
+                batch = db.table('aegis_sim_state').select('asset_id,values->load_kva').eq('run_id', ROOT_RUN_ID).order('id').range(offset, offset + 999).execute().data
+                seed_loads.update({r['asset_id']: r['load_kva'] for r in batch if r.get('load_kva') is not None})
+                if len(batch) < 1000:
+                    break
+            from metro_engine import feed
+            timetable = feed()
+            from metro_network import Network
+            import metro_simulation
+            metro_simulation.network = Network(timetable, assets, profiles)
+            while not stop.is_set():
+                try:
+                    commit()
+                except ScenarioConflict as conflict:
+                    logging.warning("Scenario tick skipped due to concurrent revision change: %s; worker remains active", conflict)
+                    try:
+                        row = db.table('aegis_sim_runs').select('*').eq('id', RUN_ID).single().execute().data
+                        if row:
+                            from metro_simulation import unpack_state
+                            s = unpack_state(deepcopy(row['configuration'].get('runtime') or initial(row)))
+                            current = dict(state=s, version=row['version'])
+                            checked = time()
+                            failure = ''
+                    except Exception:
+                        pass
+                except (PersistenceContention, TransientPersistenceFailure) as transient_err:
+                    logging.warning("Scenario tick encountered transient persistence issue: %s", transient_err)
+                except Exception as exc:
+                    failure = f'Shared simulation persistence unavailable: {type(exc).__name__}'
+                    logging.exception('Scenario tick failed due to persistence error')
+                stop.wait(2)
+        except Exception as exc:
+            failure = f'Shared database could not be loaded: {type(exc).__name__}'
+            logging.exception('Scenario startup failed')
+
+    _worker_thread = Thread(target=work, daemon=True, name='shared-scenario')
+    _worker_thread.start()
+
 
 @router.get('')
-def get_snapshot():return snapshot()
+def get_snapshot():
+    return snapshot()
+
 
 @router.post('')
-def control(c:Command):
- if db is None or current is None:raise HTTPException(503,'Shared database is still loading')
- try:return commit(c)
- except ValueError as e:raise HTTPException(422,str(e))
- except HTTPException:raise
- except Exception:raise HTTPException(503,'Scenario change was not confirmed. Refresh before retrying.')
+def control(c: Command):
+    if db is None or current is None:
+        raise HTTPException(503, 'Shared database is still loading')
+    try:
+        return commit(c)
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+    except ScenarioConflict as e:
+        raise HTTPException(409, 'Scenario was updated concurrently. Please retry your command.')
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logging.exception("Scenario command failed")
+        raise HTTPException(503, f'Scenario change was not confirmed: {type(exc).__name__}. Refresh before retrying.')
 
 
 @router.get('/electric-network')

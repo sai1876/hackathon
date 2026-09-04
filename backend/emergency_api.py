@@ -56,11 +56,18 @@ def commit(payload,request_id):
     from signal_operations import assets
     p={**payload,'_assets':assets(shared.current['state'])}
     c=SimpleNamespace(action='EMERGENCY',payload=p,request_id=request_id,target_id=p.get('trip_id'),speed=1)
-    try:shared.commit(c)
-    except ValueError as e:raise HTTPException(409,str(e))
-    except HTTPException:raise
-    except Exception:raise HTTPException(503,'Database commit not confirmed. Retry with the same request ID.')
+    try:
+        shared.commit(c)
+    except ValueError as e:
+        raise HTTPException(409,str(e))
+    except shared.ScenarioConflict:
+        raise HTTPException(409, 'Scenario was updated concurrently. Please retry with the same request ID.')
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(503,'Database commit not confirmed. Retry with the same request ID.')
     return snapshot()
+
 
 def prepare(start,end):
     from google_operations import compute,RouteInput,Location

@@ -137,7 +137,7 @@ def apply(s,p):
         emit(s,'EMERGENCY_REVIEW_READY',dict(trip_id=t['id'],vehicle=t['vehicle'],priority=t['priority'],junctions=len(plan),review_deadline=t['review_deadline']));return
     if action=='BLOCKAGE':
         from datetime import datetime,timezone
-        b=dict(id=p['id'],lat=p['lat'],lon=p['lon'],reason=p['reason'],created_at=datetime.now(timezone.utc).isoformat())
+        b=dict(id=p['id'],lat=p['lat'],lon=p['lon'],reason=p['reason'],road_name=p.get('road_name'),target_edge_id=p.get('target_edge_id'),snap_distance_m=p.get('snap_distance_m'),provenance=p.get('provenance','OPERATOR_INPUT'),created_at=datetime.now(timezone.utc).isoformat())
         w.setdefault('blockages',{})[b['id']]=b
         emit(s,'EMERGENCY_BLOCKAGE_CREATED',b)
         for trip in w['trips'].values():

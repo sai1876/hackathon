@@ -69,6 +69,28 @@ def health():
     }
 
 
+@app.get("/ready")
+def ready():
+    import scenario_runtime as shared_runtime
+    is_ready = shared_runtime.check_readiness()
+    if not is_ready:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "status": "not_ready",
+                "service": "aegisgrid-backend",
+                "detail": shared_runtime.failure or "Shared scenario database is loading or unavailable"
+            }
+        )
+    return {
+        "status": "ready",
+        "service": "aegisgrid-backend",
+        "scenario_version": shared_runtime.current["version"] if shared_runtime.current else None,
+        "sim_seconds": shared_runtime.current["state"]["seconds"] if shared_runtime.current else None
+    }
+
+
+
 @app.post("/route")
 def calculate_route(
     request: RouteRequest

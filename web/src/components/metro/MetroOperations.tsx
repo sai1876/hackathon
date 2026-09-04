@@ -1,16 +1,23 @@
 "use client";
-import {useEffect,useState} from 'react';
+import {useState} from 'react';
 import Link from 'next/link';
 import {request} from '@/lib/api';
+import {useResilientPolling} from '@/lib/useResilientPolling';
 type Platform={id:string;line:string;towards:string;waiting:number;capacity:number;density_people_m2:number;oldest_wait_seconds:number;destinations:{station:string;passengers:number}[]};
 type Station={id:string;name:string;waiting_passengers:number;walking:number;exiting:number;occupancy:number;occupancy_percent:number;entered:number;transfers:number;boarded:number;denied_boardings:number;platforms:Platform[];history:{seconds:number;waiting:number;occupancy:number;entered:number}[];weekday_profile:number[];environment:{power_failed?:boolean;access_closed?:boolean;backup?:boolean}};
 type Vehicle={id:string;line:string;station:string;status:string;pilot:string|null;manual:boolean;crew_ready:boolean;reserve:boolean;passengers:number;capacity:number;hold_until:number};
 type Decision={title?:string;stations?:string[];id:string;action:string;vehicle?:string;station:string;status:string;reason:string;created:number;expires:number;source:string;acknowledged_by?:string};
 type Data={stations:Station[];vehicles:Vehicle[];decisions:Decision[];clock_seconds:number;running:boolean;quality:{source_conflicts:number;retimed:number;unassigned:number;fleet:number};conservation:{entered:number;exited:number;inside_stations:number;onboard:number;error:number};agent:{status:string;reason:string};config:{note:string}};
 export default function MetroOperations({pilot=false,setup=false}:{pilot?:boolean;setup?:boolean}){
- const [data,setData]=useState<Data|null>(null),[stationId,setStationId]=useState('AME'),[actor,setActor]=useState(''),[vehicle,setVehicle]=useState(''),[operation,setOperation]=useState('HOLD'),[value,setValue]=useState(120),[reason,setReason]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
+ const {data,error,setData,setError}=useResilientPolling<Data>({
+  url: '/metro/operations',
+  normalIntervalMs: 3000,
+  timeoutMs: 30000,
+  defaultErrorMessage: 'Metro state unavailable'
+ });
+ const [stationId,setStationId]=useState('AME'),[actor,setActor]=useState(''),[vehicle,setVehicle]=useState(''),[operation,setOperation]=useState('HOLD'),[value,setValue]=useState(120),[reason,setReason]=useState(''),[busy,setBusy]=useState(false),[notice,setNotice]=useState('');
  const [profileText,setProfileText]=useState('');
- useEffect(()=>{let alive=true;let timer:ReturnType<typeof setTimeout>;const poll=async()=>{try{const next=await request<Data>('/metro/operations',{},30000);if(alive){setData(next);setError('');}}catch(e){if(alive)setError(e instanceof Error?e.message:'Metro state unavailable');}if(alive)timer=setTimeout(poll,3000);};void poll();return()=>{alive=false;clearTimeout(timer);};},[]);
+
  const submit=async(action:string,extra:Record<string,unknown>={})=>{setBusy(true);setError('');setNotice('');try{const next=await request<Data>('/metro/operations',{method:'POST',body:JSON.stringify({action,request_id:crypto.randomUUID(),actor,target:vehicle,station:stationId,operation,value,reason,...extra})},60000);setData(next);setNotice('Committed to the shared operating model.');}catch(e){setError(e instanceof Error?e.message:'Command not applied');}finally{setBusy(false);}};
  const station=data?.stations.find(s=>s.id===stationId)??data?.stations[0],train=data?.vehicles.find(v=>v.id===vehicle),pending=data?.decisions.filter(d=>['PENDING','APPROVED','ACKNOWLEDGED'].includes(d.status))??[];
  return <section className="metro-operations-v3" aria-label={pilot?'Metro Pilot operations':'Station passengers and operating decisions'}>

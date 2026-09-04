@@ -146,6 +146,11 @@ def get():return snapshot()
 def post(p:Action):
     import scenario_runtime as shared
     from types import SimpleNamespace
-    try:shared.commit(SimpleNamespace(action='METRO_OPERATION',payload=p.model_dump(),request_id=p.request_id,target_id=p.target,speed=1))
-    except ValueError as e:raise HTTPException(409,str(e))
+    try:
+        shared.commit(SimpleNamespace(action='METRO_OPERATION',payload=p.model_dump(),request_id=p.request_id,target_id=p.target,speed=1))
+    except ValueError as e:
+        raise HTTPException(409,str(e))
+    except shared.ScenarioConflict:
+        raise HTTPException(409, 'Scenario was updated concurrently. Please retry.')
     return snapshot()
+

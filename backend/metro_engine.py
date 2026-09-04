@@ -92,9 +92,12 @@ def network():
  except Exception:raise HTTPException(503,'Metro network unavailable')
 @router.post('/simulation')
 def control(action:Control):
+ import scenario_runtime as shared
  try:return read(action)
  except ValueError as error:raise HTTPException(422,str(error))
+ except shared.ScenarioConflict:raise HTTPException(409, 'Scenario was updated concurrently. Please retry.')
  except Exception:raise HTTPException(503,'Metro control update failed')
+
 
 
 def station_operations(data, state):
