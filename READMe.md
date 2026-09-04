@@ -11,9 +11,7 @@
 </p>
 
 <p align="center">
-  
-  ·
-  <a href="https://github.com/sai1876/hackathon"><strong>Repository</strong></a>
+   <a href="https://github.com/sai1876/hackathon"><strong>Repository</strong></a>
   ·
   <a href="AEGISGRID_APPROVED_WORKFLOW.md"><strong>Operating Model</strong></a>
   ·
